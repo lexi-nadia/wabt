@@ -549,6 +549,9 @@ Result BinaryReaderInterp::OnImportFunc(Index import_index,
                                         Index sig_index) {
   CHECK_RESULT(
       validator_.OnFunction(GetLocation(), Var(sig_index, GetLocation())));
+  if (sig_index >= module_.func_types.size()) {
+    return Result::Error;
+  }
   FuncType& func_type = module_.func_types[sig_index];
   module_.imports.push_back(ImportDesc{ImportType(
       std::string(module_name), std::string(field_name), func_type.Clone())});
@@ -607,6 +610,9 @@ Result BinaryReaderInterp::OnImportTag(Index import_index,
                                        Index tag_index,
                                        Index sig_index) {
   CHECK_RESULT(validator_.OnTag(GetLocation(), Var(sig_index, GetLocation())));
+  if (sig_index >= module_.func_types.size()) {
+    return Result::Error;
+  }
   FuncType& func_type = module_.func_types[sig_index];
   TagType tag_type{TagAttr::Exception, func_type.params};
   module_.imports.push_back(ImportDesc{ImportType(
@@ -623,6 +629,9 @@ Result BinaryReaderInterp::OnFunctionCount(Index count) {
 Result BinaryReaderInterp::OnFunction(Index index, Index sig_index) {
   CHECK_RESULT(
       validator_.OnFunction(GetLocation(), Var(sig_index, GetLocation())));
+  if (sig_index >= module_.func_types.size()) {
+    return Result::Error;
+  }
   FuncType& func_type = module_.func_types[sig_index];
   module_.funcs.push_back(FuncDesc{func_type, {}, Istream::kInvalidOffset, {}});
   func_types_.push_back(func_type);
@@ -726,6 +735,9 @@ Result BinaryReaderInterp::OnTagCount(Index count) {
 
 Result BinaryReaderInterp::OnTagType(Index index, Index sig_index) {
   CHECK_RESULT(validator_.OnTag(GetLocation(), Var(sig_index, GetLocation())));
+  if (sig_index >= module_.func_types.size()) {
+    return Result::Error;
+  }
   FuncType& func_type = module_.func_types[sig_index];
   TagType tag_type{TagAttr::Exception, func_type.params};
   module_.tags.push_back(TagDesc{tag_type});
@@ -742,11 +754,36 @@ Result BinaryReaderInterp::OnExport(Index index,
 
   std::unique_ptr<ExternType> type;
   switch (kind) {
-    case ExternalKind::Func:   type = func_types_[item_index].Clone(); break;
-    case ExternalKind::Table:  type = table_types_[item_index].Clone(); break;
-    case ExternalKind::Memory: type = memory_types_[item_index].Clone(); break;
-    case ExternalKind::Global: type = global_types_[item_index].Clone(); break;
-    case ExternalKind::Tag:    type = tag_types_[item_index].Clone(); break;
+    case ExternalKind::Func:
+      if (item_index >= func_types_.size()) {
+        return Result::Error;
+      }
+      type = func_types_[item_index].Clone();
+      break;
+    case ExternalKind::Table:
+      if (item_index >= table_types_.size()) {
+        return Result::Error;
+      }
+      type = table_types_[item_index].Clone();
+      break;
+    case ExternalKind::Memory:
+      if (item_index >= memory_types_.size()) {
+        return Result::Error;
+      }
+      type = memory_types_[item_index].Clone();
+      break;
+    case ExternalKind::Global:
+      if (item_index >= global_types_.size()) {
+        return Result::Error;
+      }
+      type = global_types_[item_index].Clone();
+      break;
+    case ExternalKind::Tag:
+      if (item_index >= tag_types_.size()) {
+        return Result::Error;
+      }
+      type = tag_types_[item_index].Clone();
+      break;
   }
   module_.exports.push_back(
       ExportDesc{ExportType(std::string(name), std::move(type)), item_index});
@@ -1239,6 +1276,9 @@ Result BinaryReaderInterp::OnReturnCallExpr(Index func_index) {
   CHECK_RESULT(
       validator_.OnReturnCall(GetLocation(), Var(func_index, GetLocation())));
 
+  if (func_index >= func_types_.size()) {
+    return Result::Error;
+  }
   FuncType& func_type = func_types_[func_index];
 
   Index drop_count, keep_count, catch_drop_count;
@@ -1273,6 +1313,9 @@ Result BinaryReaderInterp::OnReturnCallIndirectExpr(Index sig_index,
       GetLocation(), Var(sig_index, GetLocation()),
       Var(table_index, GetLocation())));
 
+  if (sig_index >= module_.func_types.size()) {
+    return Result::Error;
+  }
   FuncType& func_type = module_.func_types[sig_index];
 
   Index drop_count, keep_count, catch_drop_count;
@@ -1352,7 +1395,10 @@ Result BinaryReaderInterp::OnGlobalGetExpr(Index global_index) {
   CHECK_RESULT(
       validator_.OnGlobalGet(GetLocation(), Var(global_index, GetLocation())));
 
-  Type type = global_types_.at(global_index).type;
+  if (global_index >= global_types_.size()) {
+    return Result::Error;
+  }
+  Type type = global_types_[global_index].type;
   if (type.IsRef()) {
     istream_.Emit(Opcode::InterpGlobalGetRef, global_index);
   } else {
